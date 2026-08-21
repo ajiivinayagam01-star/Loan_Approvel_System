@@ -3,6 +3,7 @@ import requests
 import json
 from datetime import datetime
 import pandas as pd
+import matplotlib.pyplot as plt
 
 
 # =========================================================
@@ -22,45 +23,53 @@ st.set_page_config(
 # =========================================================
 
 st.markdown("""
-    <style>
-    .main {
-        padding: 2rem;
-    }
+<style>
 
-    .success-box {
-        background-color: #d4edda;
-        border: 1px solid #c3e6cb;
-        border-radius: 0.5rem;
-        padding: 1rem;
-        margin: 1rem 0;
-    }
+.main {
+    padding: 2rem;
+}
 
-    .danger-box {
-        background-color: #f8d7da;
-        border: 1px solid #f5c6cb;
-        border-radius: 0.5rem;
-        padding: 1rem;
-        margin: 1rem 0;
-    }
+.success-box {
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+    border-radius: 10px;
+    padding: 20px;
+    margin: 15px 0;
+}
 
-    .info-box {
-        background-color: #d1ecf1;
-        border: 1px solid #bee5eb;
-        border-radius: 0.5rem;
-        padding: 1rem;
-        margin: 1rem 0;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+.danger-box {
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    border-radius: 10px;
+    padding: 20px;
+    margin: 15px 0;
+}
+
+.warning-box {
+    background-color: #fff3cd;
+    border: 1px solid #ffeeba;
+    border-radius: 10px;
+    padding: 20px;
+    margin: 15px 0;
+}
+
+.info-box {
+    background-color: #d1ecf1;
+    border: 1px solid #bee5eb;
+    border-radius: 10px;
+    padding: 20px;
+    margin: 15px 0;
+}
+
+</style>
+""", unsafe_allow_html=True)
 
 
 # =========================================================
 # API CONFIGURATION
 # =========================================================
 
-API_URL = "http://localhost:8000"
+API_URL = "http://127.0.0.1:8000"
 
 
 # =========================================================
@@ -68,25 +77,38 @@ API_URL = "http://localhost:8000"
 # =========================================================
 
 st.title("💰 Loan Approval Predictor")
-st.markdown("**AI-Powered Instant Loan Decision System**")
+
+st.markdown(
+    "**AI-Powered Loan Decision & Explainable AI System**"
+)
+
+st.markdown(
+    """
+    This system combines Machine Learning with **SHAP and LIME**
+    to explain which applicant parameters influenced the prediction.
+    """
+)
+
 st.divider()
 
 
 # =========================================================
-# CHECK API CONNECTIVITY
+# API HEALTH CHECK
 # =========================================================
 
 def check_api_health():
 
     try:
+
         response = requests.get(
             f"{API_URL}/health",
-            timeout=2
+            timeout=3
         )
 
         return response.status_code == 200
 
     except requests.exceptions.RequestException:
+
         return False
 
 
@@ -100,531 +122,1174 @@ with st.sidebar:
 
     st.info(
         """
-        This application uses machine learning to predict
-        loan approval decisions based on applicant financial data.
+        ### Loan Approval Predictor
 
-        **Features:**
-        - Instant predictions
-        - Confidence scoring
-        - Financial recommendations
+        This application uses Machine Learning to
+        predict loan approval.
+
+        **XAI Methods**
+
+        🔵 SHAP  
+        Explains feature contributions.
+
+        🟣 LIME  
+        Explains the individual prediction.
+
+        💰 Affordability  
+        Calculates repayment burden.
         """
     )
 
     st.divider()
 
-    st.markdown("### 📋 Data Requirements")
+    st.markdown("### 📋 Input Requirements")
 
     st.markdown("""
-    - **Age**: 18-120 years
-    - **Income**: Annual salary (USD)
-    - **Credit Score**: 300-850
-    - **Employment**: Years at current job
-    - **Loan Amount**: Requested amount (USD)
-    - **Existing Loans**: Number of existing loans
-    - **Loan Term**: Repayment period in months
+    **Age**
+    - 18–120 years
+
+    **Annual Income**
+    - Positive value
+
+    **Credit Score**
+    - 300–850
+
+    **Employment**
+    - Years of employment
+
+    **Loan Amount**
+    - Requested amount
+
+    **Existing Loans**
+    - Number of current loans
+
+    **Loan Term**
+    - Repayment period in months
     """)
 
     st.divider()
 
     if check_api_health():
 
-        st.success("✓ API Connected")
+        st.success("✓ FastAPI Connected")
 
     else:
 
-        st.error("✗ API Offline - Start FastAPI first")
+        st.error("✗ FastAPI Offline")
 
-
-# =========================================================
-# MAIN CONTENT
-# =========================================================
-
-col1, col2 = st.columns([2, 1])
-
-
-with col1:
-
-    st.subheader("Enter Applicant Information")
-
-
-    # =====================================================
-    # APPLICATION FORM
-    # =====================================================
-
-    with st.form("loan_application_form"):
-
-        col1, col2 = st.columns(2)
-
-
-        # =================================================
-        # LEFT COLUMN
-        # =================================================
-
-        with col1:
-
-            age = st.number_input(
-                "Age",
-                min_value=18,
-                max_value=120,
-                value=35,
-                step=1,
-                help="Applicant age in years"
-            )
-
-
-            income = st.number_input(
-                "Annual Income ($)",
-                min_value=20000,
-                max_value=500000,
-                value=75000,
-                step=5000,
-                help="Gross annual income in USD"
-            )
-
-
-            credit_score = st.slider(
-                "Credit Score",
-                min_value=300,
-                max_value=850,
-                value=720,
-                step=10,
-                help="FICO credit score"
-            )
-
-
-            employment_years = st.number_input(
-                "Years of Employment",
-                min_value=0.0,
-                max_value=50.0,
-                value=5.0,
-                step=0.5,
-                help="Years at current job"
-            )
-
-
-        # =================================================
-        # RIGHT COLUMN
-        # =================================================
-
-        with col2:
-
-            loan_amount = st.number_input(
-                "Loan Amount ($)",
-                min_value=5000,
-                max_value=500000,
-                value=25000,
-                step=5000,
-                help="Requested loan amount in USD"
-            )
-
-
-            existing_loans = st.number_input(
-                "Existing Loans",
-                min_value=0,
-                max_value=20,
-                value=2,
-                step=1,
-                help="Number of existing loans"
-            )
-
-
-            loan_term = st.number_input(
-                "Loan Term (Months)",
-                min_value=6,
-                max_value=120,
-                value=36,
-                step=6,
-                help="Requested loan repayment period"
-            )
-
-
-        st.divider()
-
-
-        # =================================================
-        # SUBMIT BUTTON
-        # =================================================
-
-        submit_button = st.form_submit_button(
-            "🔮 Predict Approval Status",
-            use_container_width=True,
-            type="primary"
+        st.caption(
+            "Start FastAPI using:\n\n"
+            "python -m uvicorn main:app "
+            "--reload --port 8000"
         )
 
 
 # =========================================================
-# HANDLE FORM SUBMISSION
+# APPLICATION FORM
+# =========================================================
+
+st.subheader("👤 Applicant Information")
+
+
+with st.form("loan_application_form"):
+
+    left, right = st.columns(2)
+
+
+    # =====================================================
+    # LEFT COLUMN
+    # =====================================================
+
+    with left:
+
+        age = st.number_input(
+            "Age",
+            min_value=18,
+            max_value=120,
+            value=35,
+            step=1,
+            help="Applicant age in years"
+        )
+
+
+        income = st.number_input(
+            "Annual Income ($)",
+            min_value=1000,
+            max_value=5000000,
+            value=75000,
+            step=5000,
+            help="Applicant's annual income"
+        )
+
+
+        credit_score = st.slider(
+            "Credit Score",
+            min_value=300,
+            max_value=850,
+            value=720,
+            step=1,
+            help="Credit score"
+        )
+
+
+        employment_years = st.number_input(
+            "Years of Employment",
+            min_value=0.0,
+            max_value=50.0,
+            value=5.0,
+            step=0.5,
+            help="Years of employment"
+        )
+
+
+    # =====================================================
+    # RIGHT COLUMN
+    # =====================================================
+
+    with right:
+
+        loan_amount = st.number_input(
+            "Loan Amount ($)",
+            min_value=1000,
+            max_value=5000000,
+            value=25000,
+            step=5000,
+            help="Requested loan amount"
+        )
+
+
+        existing_loans = st.number_input(
+            "Existing Loans",
+            min_value=0,
+            max_value=20,
+            value=2,
+            step=1,
+            help="Number of existing loans"
+        )
+
+
+        loan_term = st.number_input(
+            "Loan Term (Months)",
+            min_value=1,
+            max_value=360,
+            value=36,
+            step=6,
+            help="Requested repayment period"
+        )
+
+
+    st.divider()
+
+
+    submit_button = st.form_submit_button(
+        "🔮 Predict Loan Decision",
+        use_container_width=True,
+        type="primary"
+    )
+
+
+# =========================================================
+# HANDLE SUBMISSION
 # =========================================================
 
 if submit_button:
 
     # =====================================================
-    # CHECK BACKEND
+    # CHECK API
     # =====================================================
 
     if not check_api_health():
 
         st.error(
-            "❌ **API Connection Error**\n\n"
-            "The backend server is not running.\n\n"
-            "Start it using:\n\n"
-            "`python -m uvicorn main:app --reload --port 8000`"
+            """
+            ❌ **Backend API is not available.**
+
+            Please start FastAPI:
+
+            `python -m uvicorn main:app --reload --port 8000`
+            """
         )
 
-    else:
+        st.stop()
 
-        # =================================================
-        # PREPARE REQUEST PAYLOAD
-        # =================================================
 
-        payload = {
+    # =====================================================
+    # PREPARE PAYLOAD
+    # =====================================================
 
-            "age": int(age),
+    payload = {
 
-            "income": float(income),
+        "age": int(age),
 
-            "credit_score": int(credit_score),
+        "income": float(income),
 
-            "employment_years": float(
-                employment_years
-            ),
+        "credit_score": int(credit_score),
 
-            "loan_amount": float(
-                loan_amount
-            ),
+        "employment_years":
+            float(employment_years),
 
-            "existing_loans": int(
-                existing_loans
-            ),
+        "loan_amount":
+            float(loan_amount),
 
-            "loan_term": int(
-                loan_term
+        "existing_loans":
+            int(existing_loans),
+
+        "loan_term":
+            int(loan_term)
+    }
+
+
+    # =====================================================
+    # DISPLAY REQUEST DEBUG INFO
+    # =====================================================
+
+    with st.expander("🔧 Request Data", expanded=False):
+
+        st.json(payload)
+
+
+    # =====================================================
+    # SEND REQUEST
+    # =====================================================
+
+    with st.spinner(
+        "🤖 Machine Learning model is analyzing the application..."
+    ):
+
+        try:
+
+            response = requests.post(
+
+                f"{API_URL}/predict",
+
+                json=payload,
+
+                timeout=30
             )
-        }
 
 
-        # =================================================
-        # SEND REQUEST TO FASTAPI
-        # =================================================
+            # =================================================
+            # SUCCESS
+            # =================================================
 
-        with st.spinner(
-            "🔄 Processing application..."
-        ):
+            if response.status_code == 200:
 
-            try:
+                result = response.json()
 
-                response = requests.post(
 
-                    f"{API_URL}/predict",
+                # =================================================
+                # GET RESULT VALUES
+                # =================================================
 
-                    json=payload,
+                decision = result.get(
+                    "approval_status",
+                    "UNKNOWN"
+                )
 
-                    timeout=10
+                probability = result.get(
+                    "approval_probability",
+                    0
+                )
+
+                confidence = result.get(
+                    "confidence_percentage",
+                    0
+                )
+
+                recommendation = result.get(
+                    "recommendation",
+                    "No recommendation available."
+                )
+
+
+                shap_data = result.get(
+                    "shap_explanation",
+                    []
+                )
+
+                lime_data = result.get(
+                    "lime_explanation",
+                    []
+                )
+
+                positive_factors = result.get(
+                    "top_positive_factors",
+                    []
+                )
+
+                negative_factors = result.get(
+                    "top_negative_factors",
+                    []
+                )
+
+                affordability = result.get(
+                    "affordability",
+                    {}
                 )
 
 
                 # =================================================
-                # SUCCESS RESPONSE
+                # PREDICTION RESULT
                 # =================================================
 
-                if response.status_code == 200:
+                st.divider()
 
-                    result = response.json()
+                st.subheader(
+                    "📊 Prediction Result"
+                )
 
 
-                    st.divider()
+                # =================================================
+                # APPROVED
+                # =================================================
 
-                    st.subheader(
-                        "📊 Prediction Results"
+                if decision == "APPROVED":
+
+                    st.markdown(
+                        f"""
+                        <div class="success-box">
+
+                        <h2>✅ LOAN APPROVED</h2>
+
+                        <p>
+                        <strong>ML Approval Probability:</strong>
+                        {probability:.2%}
+                        </p>
+
+                        <p>
+                        <strong>Confidence:</strong>
+                        {confidence}%
+                        </p>
+
+                        <p>
+                        <strong>Recommendation:</strong>
+                        {recommendation}
+                        </p>
+
+                        </div>
+                        """,
+                        unsafe_allow_html=True
                     )
 
 
-                    # =================================================
-                    # APPROVED
-                    # =================================================
+                # =================================================
+                # MANUAL REVIEW
+                # =================================================
 
-                    if result["approval_status"] == "APPROVED":
+                elif decision == "MANUAL REVIEW":
 
-                        st.markdown(
-                            f"""
-                            <div class="success-box">
+                    st.markdown(
+                        f"""
+                        <div class="warning-box">
 
-                            <h3>✅ LOAN APPROVED</h3>
+                        <h2>⚠️ MANUAL REVIEW</h2>
 
-                            <p>
-                            <strong>Confidence:</strong>
-                            {result['confidence_percentage']}%
-                            </p>
+                        <p>
+                        <strong>ML Approval Probability:</strong>
+                        {probability:.2%}
+                        </p>
 
-                            <p>
-                            <strong>Recommendation:</strong>
-                            {result['recommendation']}
-                            </p>
+                        <p>
+                        <strong>Confidence:</strong>
+                        {confidence}%
+                        </p>
 
-                            </div>
-                            """,
-                            unsafe_allow_html=True
-                        )
+                        <p>
+                        <strong>Recommendation:</strong>
+                        {recommendation}
+                        </p>
 
-
-                    # =================================================
-                    # DENIED
-                    # =================================================
-
-                    else:
-
-                        st.markdown(
-                            f"""
-                            <div class="danger-box">
-
-                            <h3>❌ LOAN DENIED</h3>
-
-                            <p>
-                            <strong>Confidence:</strong>
-                            {result['confidence_percentage']}%
-                            </p>
-
-                            <p>
-                            <strong>Recommendation:</strong>
-                            {result['recommendation']}
-                            </p>
-
-                            </div>
-                            """,
-                            unsafe_allow_html=True
-                        )
-
-
-                    # =================================================
-                    # DETAILED METRICS
-                    # =================================================
-
-                    col1, col2, col3 = st.columns(3)
-
-
-                    with col1:
-
-                        st.metric(
-                            "Approval Probability",
-                            f"{result['approval_probability']:.2%}"
-                        )
-
-
-                    with col2:
-
-                        st.metric(
-                            "Decision",
-                            result["approval_status"]
-                        )
-
-
-                    with col3:
-
-                        st.metric(
-                            "Confidence",
-                            f"{result['confidence_percentage']}%"
-                        )
-
-
-                    # =================================================
-                    # APPLICATION SUMMARY
-                    # =================================================
-
-                    st.divider()
-
-                    st.subheader(
-                        "📋 Application Summary"
+                        </div>
+                        """,
+                        unsafe_allow_html=True
                     )
 
 
-                    summary_data = {
+                # =================================================
+                # REJECTED
+                # =================================================
 
-                        "Metric": [
+                else:
 
-                            "Age",
+                    st.markdown(
+                        f"""
+                        <div class="danger-box">
 
-                            "Annual Income",
+                        <h2>❌ LOAN REJECTED</h2>
 
-                            "Credit Score",
+                        <p>
+                        <strong>ML Approval Probability:</strong>
+                        {probability:.2%}
+                        </p>
 
-                            "Employment History",
+                        <p>
+                        <strong>Confidence:</strong>
+                        {confidence}%
+                        </p>
 
-                            "Requested Loan",
+                        <p>
+                        <strong>Recommendation:</strong>
+                        {recommendation}
+                        </p>
 
-                            "Existing Loans",
-
-                            "Loan Term",
-
-                            "Prediction Timestamp"
-                        ],
-
-
-                        "Value": [
-
-                            f"{age} years",
-
-                            f"${income:,.2f}",
-
-                            credit_score,
-
-                            f"{employment_years} years",
-
-                            f"${loan_amount:,.2f}",
-
-                            existing_loans,
-
-                            f"{loan_term} months",
-
-                            datetime.now().strftime(
-                                "%Y-%m-%d %H:%M:%S"
-                            )
-                        ]
-                    }
-
-
-                    summary_df = pd.DataFrame(
-                        summary_data
+                        </div>
+                        """,
+                        unsafe_allow_html=True
                     )
 
 
-                    st.dataframe(
-                        summary_df,
-                        use_container_width=True,
-                        hide_index=True
+                # =================================================
+                # METRICS
+                # =================================================
+
+                col1, col2, col3 = st.columns(3)
+
+
+                with col1:
+
+                    st.metric(
+                        "Approval Probability",
+                        f"{probability:.2%}"
                     )
 
 
-                    # =================================================
-                    # FINANCIAL INSIGHTS
-                    # =================================================
+                with col2:
 
-                    st.divider()
-
-                    st.subheader(
-                        "💡 Financial Insights"
+                    st.metric(
+                        "ML Decision",
+                        decision
                     )
 
 
-                    monthly_income = income / 12
+                with col3:
+
+                    st.metric(
+                        "Confidence",
+                        f"{confidence}%"
+                    )
 
 
-                    estimated_monthly_payment = (
+                # =================================================
+                # AFFORDABILITY ANALYSIS
+                # =================================================
+
+                st.divider()
+
+                st.subheader(
+                    "💰 Affordability Analysis"
+                )
+
+
+                if affordability:
+
+                    monthly_income = affordability.get(
+                        "monthly_income",
+                        income / 12
+                    )
+
+                    estimated_payment = affordability.get(
+                        "estimated_monthly_payment",
                         loan_amount / loan_term
                     )
 
+                    payment_ratio = affordability.get(
+                        "payment_to_income_ratio",
+                        0
+                    )
+
+                    loan_ratio = affordability.get(
+                        "loan_to_income_ratio",
+                        0
+                    )
+
+                    affordability_status = affordability.get(
+                        "status",
+                        "UNKNOWN"
+                    )
+
+
+                    # =============================================
+                    # FINANCIAL METRICS
+                    # =============================================
 
                     col1, col2 = st.columns(2)
 
 
                     with col1:
 
-                        st.info(
-                            f"""
-                            **Monthly Income:**
-                            ${monthly_income:,.2f}
+                        st.metric(
+                            "Monthly Income",
+                            f"${monthly_income:,.2f}"
+                        )
 
-                            **Existing Loans:**
-                            {existing_loans}
-                            """
+                        st.metric(
+                            "Loan / Annual Income",
+                            f"{loan_ratio:.2%}"
                         )
 
 
                     with col2:
 
-                        st.warning(
-                            f"""
-                            **Estimated Monthly Payment:**
-                            ${estimated_monthly_payment:,.2f}
+                        st.metric(
+                            "Estimated Monthly Payment",
+                            f"${estimated_payment:,.2f}"
+                        )
 
-                            **Loan Term:**
-                            {loan_term} months
+                        st.metric(
+                            "Payment / Income",
+                            f"{payment_ratio:.2%}"
+                        )
+
+
+                    # =============================================
+                    # AFFORDABILITY STATUS
+                    # =============================================
+
+                    if affordability_status == "HIGH RISK":
+
+                        st.error(
+                            """
+                            🔴 **HIGH AFFORDABILITY RISK**
+
+                            The estimated monthly repayment is high
+                            relative to the applicant's monthly income.
                             """
                         )
 
 
-                    # =================================================
-                    # DOWNLOAD REPORT
-                    # =================================================
+                    elif affordability_status == "MODERATE RISK":
 
-                    st.divider()
+                        st.warning(
+                            """
+                            🟠 **MODERATE AFFORDABILITY RISK**
 
-                    st.subheader(
-                        "📥 Download Report"
+                            The repayment burden requires additional
+                            financial consideration.
+                            """
+                        )
+
+
+                    else:
+
+                        st.success(
+                            """
+                            🟢 **LOW AFFORDABILITY RISK**
+
+                            The estimated repayment burden is relatively
+                            manageable compared with monthly income.
+                            """
+                        )
+
+
+                # =================================================
+                # XAI SECTION
+                # =================================================
+
+                st.divider()
+
+                st.subheader(
+                    "🔍 Explainable AI (XAI)"
+                )
+
+                st.write(
+                    """
+                    XAI explains **which parameters influenced the
+                    model's prediction** and whether they contributed
+                    toward approval or rejection.
+                    """
+                )
+
+
+                # =================================================
+                # MAIN DECISION FACTORS
+                # =================================================
+
+                st.markdown(
+                    "### 🎯 Main Decision Factors"
+                )
+
+
+                # =================================================
+                # NEGATIVE FACTORS
+                # =================================================
+
+                if negative_factors:
+
+                    st.markdown(
+                        "#### 🔴 Factors Increasing Rejection Risk"
                     )
 
 
-                    report = {
+                    for factor in negative_factors:
 
-                        "prediction": result,
+                        feature = factor.get(
+                            "feature",
+                            "Unknown"
+                        )
 
-                        "application": payload,
-
-                        "timestamp":
-                            datetime.now().isoformat()
-                    }
-
-
-                    st.download_button(
-
-                        label="Download JSON Report",
-
-                        data=json.dumps(
-                            report,
-                            indent=2
-                        ),
-
-                        file_name="loan_report.json",
-
-                        mime="application/json"
-                    )
+                        contribution = factor.get(
+                            "contribution",
+                            0
+                        )
 
 
-                # =====================================================
-                # API ERROR
-                # =====================================================
+                        st.write(
+                            f"🔴 **{feature}**  \n"
+                            f"Contribution: `{contribution:.4f}`"
+                        )
+
 
                 else:
 
-                    try:
-
-                        error_details = response.json()
-
-                    except:
-
-                        error_details = response.text
-
-
-                    st.error(
-                        f"❌ Prediction error: "
-                        f"{error_details}"
+                    st.info(
+                        "No negative SHAP factors were returned."
                     )
 
 
-            # =========================================================
-            # CONNECTION ERROR
-            # =========================================================
+                # =================================================
+                # POSITIVE FACTORS
+                # =================================================
 
-            except requests.exceptions.ConnectionError:
+                if positive_factors:
 
-                st.error(
-                    "❌ **Cannot Connect to API**\n\n"
+                    st.markdown(
+                        "#### 🟢 Factors Supporting Approval"
+                    )
 
-                    "Make sure the FastAPI server is running:\n\n"
 
-                    "`python -m uvicorn main:app "
-                    "--reload --port 8000`"
+                    for factor in positive_factors:
+
+                        feature = factor.get(
+                            "feature",
+                            "Unknown"
+                        )
+
+                        contribution = factor.get(
+                            "contribution",
+                            0
+                        )
+
+
+                        st.write(
+                            f"🟢 **{feature}**  \n"
+                            f"Contribution: `{contribution:.4f}`"
+                        )
+
+
+                else:
+
+                    st.info(
+                        "No positive SHAP factors were returned."
+                    )
+
+
+                # =================================================
+                # SHAP CHART
+                # =================================================
+
+                st.markdown(
+                    "### 📊 SHAP Feature Contributions"
                 )
 
 
-            # =========================================================
-            # OTHER ERROR
-            # =========================================================
+                if shap_data:
 
-            except Exception as e:
+                    try:
+
+                        shap_df = pd.DataFrame(
+                            shap_data
+                        )
+
+
+                        shap_df = shap_df.sort_values(
+                            by="contribution"
+                        )
+
+
+                        fig, ax = plt.subplots(
+                            figsize=(8, 5)
+                        )
+
+
+                        ax.barh(
+                            shap_df["feature"],
+                            shap_df["contribution"]
+                        )
+
+
+                        ax.axvline(
+                            0,
+                            linewidth=1
+                        )
+
+
+                        ax.set_xlabel(
+                            "Contribution Toward Approval"
+                        )
+
+
+                        ax.set_ylabel(
+                            "Parameter"
+                        )
+
+
+                        ax.set_title(
+                            "SHAP Explanation"
+                        )
+
+
+                        plt.tight_layout()
+
+
+                        st.pyplot(
+                            fig
+                        )
+
+
+                        plt.close(fig)
+
+
+                    except Exception as e:
+
+                        st.warning(
+                            f"Could not display SHAP chart: {e}"
+                        )
+
+
+                else:
+
+                    st.info(
+                        "SHAP explanation is not available."
+                    )
+
+
+                # =================================================
+                # SHAP DATA TABLE
+                # =================================================
+
+                if shap_data:
+
+                    with st.expander(
+                        "📋 View SHAP Values"
+                    ):
+
+                        shap_df = pd.DataFrame(
+                            shap_data
+                        )
+
+                        st.dataframe(
+                            shap_df,
+                            use_container_width=True,
+                            hide_index=True
+                        )
+
+
+                # =================================================
+                # LIME EXPLANATION
+                # =================================================
+
+                st.markdown(
+                    "### 🧠 LIME Local Explanation"
+                )
+
+
+                st.write(
+                    """
+                    LIME explains the current applicant's prediction
+                    by identifying the local feature conditions that
+                    influenced the model.
+                    """
+                )
+
+
+                if lime_data:
+
+                    try:
+
+                        lime_df = pd.DataFrame(
+                            lime_data
+                        )
+
+
+                        lime_df = lime_df.sort_values(
+                            by="contribution"
+                        )
+
+
+                        fig, ax = plt.subplots(
+                            figsize=(8, 5)
+                        )
+
+
+                        ax.barh(
+                            lime_df["feature"],
+                            lime_df["contribution"]
+                        )
+
+
+                        ax.axvline(
+                            0,
+                            linewidth=1
+                        )
+
+
+                        ax.set_xlabel(
+                            "LIME Contribution"
+                        )
+
+
+                        ax.set_ylabel(
+                            "Feature / Condition"
+                        )
+
+
+                        ax.set_title(
+                            "LIME Explanation for This Applicant"
+                        )
+
+
+                        plt.tight_layout()
+
+
+                        st.pyplot(
+                            fig
+                        )
+
+
+                        plt.close(fig)
+
+
+                    except Exception as e:
+
+                        st.warning(
+                            f"Could not display LIME chart: {e}"
+                        )
+
+
+                else:
+
+                    st.info(
+                        "LIME explanation is not available."
+                    )
+
+
+                # =================================================
+                # LIME DATA TABLE
+                # =================================================
+
+                if lime_data:
+
+                    with st.expander(
+                        "📋 View LIME Values"
+                    ):
+
+                        lime_df = pd.DataFrame(
+                            lime_data
+                        )
+
+                        st.dataframe(
+                            lime_df,
+                            use_container_width=True,
+                            hide_index=True
+                        )
+
+
+                # =================================================
+                # HUMAN READABLE EXPLANATION
+                # =================================================
+
+                st.divider()
+
+                st.subheader(
+                    "💡 Why was this decision made?"
+                )
+
+
+                # =================================================
+                # REJECTED EXPLANATION
+                # =================================================
+
+                if decision == "REJECTED":
+
+                    if negative_factors:
+
+                        top_negative = (
+                            negative_factors[:3]
+                        )
+
+
+                        names = ", ".join(
+                            [
+                                str(
+                                    item["feature"]
+                                )
+
+                                for item in top_negative
+                            ]
+                        )
+
+
+                        st.error(
+                            f"""
+                            **Primary decision factors:**
+
+                            The strongest factors pushing the model
+                            toward rejection were:
+
+                            **{names}**
+                            """
+                        )
+
+                    else:
+
+                        st.warning(
+                            """
+                            The model rejected the application,
+                            but detailed SHAP factors were unavailable.
+                            """
+                        )
+
+
+                # =================================================
+                # APPROVED EXPLANATION
+                # =================================================
+
+                elif decision == "APPROVED":
+
+                    if positive_factors:
+
+                        top_positive = (
+                            positive_factors[:3]
+                        )
+
+
+                        names = ", ".join(
+                            [
+                                str(
+                                    item["feature"]
+                                )
+
+                                for item in top_positive
+                            ]
+                        )
+
+
+                        st.success(
+                            f"""
+                            **Primary decision factors:**
+
+                            The strongest factors supporting approval
+                            were:
+
+                            **{names}**
+                            """
+                        )
+
+                    else:
+
+                        st.info(
+                            """
+                            The model approved the application,
+                            but detailed SHAP factors were unavailable.
+                            """
+                        )
+
+
+                # =================================================
+                # MANUAL REVIEW
+                # =================================================
+
+                else:
+
+                    st.warning(
+                        """
+                        The application requires additional review.
+                        Examine the affordability metrics and XAI
+                        feature contributions before making a final
+                        decision.
+                        """
+                    )
+
+
+                # =================================================
+                # APPLICATION SUMMARY
+                # =================================================
+
+                st.divider()
+
+                st.subheader(
+                    "📋 Application Summary"
+                )
+
+
+                summary_data = {
+
+                    "Parameter": [
+
+                        "Age",
+
+                        "Annual Income",
+
+                        "Credit Score",
+
+                        "Employment Years",
+
+                        "Loan Amount",
+
+                        "Existing Loans",
+
+                        "Loan Term",
+
+                        "Prediction Time"
+                    ],
+
+
+                    "Value": [
+
+                        f"{age} years",
+
+                        f"${income:,.2f}",
+
+                        f"{credit_score}",
+
+                        f"{employment_years} years",
+
+                        f"${loan_amount:,.2f}",
+
+                        f"{existing_loans}",
+
+                        f"{loan_term} months",
+
+                        datetime.now().strftime(
+                            "%Y-%m-%d %H:%M:%S"
+                        )
+                    ]
+                }
+
+
+                summary_df = pd.DataFrame(
+                    summary_data
+                )
+
+
+                st.dataframe(
+                    summary_df,
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+
+                # =================================================
+                # DOWNLOAD REPORT
+                # =================================================
+
+                st.divider()
+
+                st.subheader(
+                    "📥 Download XAI Report"
+                )
+
+
+                report = {
+
+                    "application":
+                        payload,
+
+                    "prediction":
+                        result,
+
+                    "timestamp":
+                        datetime.now().isoformat()
+                }
+
+
+                st.download_button(
+
+                    label=
+                        "📄 Download JSON Report",
+
+                    data=json.dumps(
+                        report,
+                        indent=2
+                    ),
+
+                    file_name=
+                        "loan_xai_report.json",
+
+                    mime=
+                        "application/json",
+
+                    use_container_width=True
+                )
+
+
+            # =====================================================
+            # API ERROR
+            # =====================================================
+
+            else:
+
+                try:
+
+                    error_details = (
+                        response.json()
+                    )
+
+                except Exception:
+
+                    error_details = (
+                        response.text
+                    )
+
 
                 st.error(
-                    f"❌ Error: {str(e)}"
+                    f"❌ Prediction error: "
+                    f"{error_details}"
                 )
+
+
+        # =========================================================
+        # CONNECTION ERROR
+        # =========================================================
+
+        except requests.exceptions.ConnectionError:
+
+            st.error(
+                """
+                ❌ **Cannot connect to FastAPI.**
+
+                Make sure FastAPI is running:
+
+                `python -m uvicorn main:app --reload --port 8000`
+                """
+            )
+
+
+        # =========================================================
+        # TIMEOUT ERROR
+        # =========================================================
+
+        except requests.exceptions.Timeout:
+
+            st.error(
+                """
+                ❌ **Request timed out.**
+
+                SHAP and LIME explanations can take additional
+                processing time. Please try again.
+                """
+            )
+
+
+        # =========================================================
+        # OTHER ERROR
+        # =========================================================
+
+        except Exception as e:
+
+            st.error(
+                f"❌ Unexpected error: {str(e)}"
+            )
 
 
 # =========================================================
@@ -634,6 +1299,9 @@ if submit_button:
 st.divider()
 
 st.caption(
-    "💡 **Disclaimer:** This is a demonstration ML model. "
-    "Real loan decisions should involve comprehensive financial review."
+    """
+    💡 Disclaimer: This is a demonstration Machine Learning system.
+    SHAP and LIME explain model behavior; they do not guarantee
+    loan repayment or constitute a real financial lending decision.
+    """
 )
