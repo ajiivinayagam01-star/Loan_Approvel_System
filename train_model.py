@@ -1,15 +1,16 @@
 import pandas as pd
 import joblib
 
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sklearn.pipeline import Pipeline
+from sklearn.model_selection import (
+    train_test_split,
+    StratifiedKFold,
+    cross_val_score,
+    GridSearchCV
+)
 
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.svm import SVC
 
 from sklearn.metrics import (
     accuracy_score,
@@ -22,29 +23,38 @@ from sklearn.metrics import (
 
 
 # =========================================================
-# 1. LOAD DATASET
+# 1. LOAD ORIGINAL DATASET
 # =========================================================
 
 df = pd.read_csv("loans.csv")
 
-print("=" * 60)
-print("LOAN APPROVAL - MACHINE LEARNING TRAINING")
-print("=" * 60)
+print("=" * 65)
+print("LOAN APPROVAL - GENERALIZED MACHINE LEARNING TRAINING")
+print("=" * 65)
+
+print("\nDataset shape:", df.shape)
 
 
 # =========================================================
-# 2. REMOVE ID
+# 2. REMOVE ONLY ID
 # =========================================================
 
 df = df.drop(columns=["Applicant_ID"])
 
 
 # =========================================================
-# 3. SEPARATE FEATURES AND TARGET
+# 3. FEATURES AND TARGET
 # =========================================================
 
 X = df.drop(columns=["Loan_Approved"])
 y = df["Loan_Approved"]
+
+
+print("\nFeatures:")
+print(list(X.columns))
+
+print("\nTarget distribution:")
+print(y.value_counts())
 
 
 # =========================================================
@@ -59,157 +69,176 @@ X_train, X_test, y_train, y_test = train_test_split(
     stratify=y
 )
 
+
 print("\nTraining samples:", len(X_train))
 print("Testing samples :", len(X_test))
 
 
 # =========================================================
-# 5. CREATE MODELS
+# 5. LOGISTIC REGRESSION PIPELINE
 # =========================================================
 
-models = {
+pipeline = Pipeline([
+    (
+        "scaler",
+        StandardScaler()
+    ),
 
-    "Logistic Regression": Pipeline([
-        ("scaler", StandardScaler()),
-        ("model", LogisticRegression(max_iter=1000))
-    ]),
+    (
+        "model",
+        LogisticRegression(
+            max_iter=2000,
+            class_weight="balanced"
+        )
+    )
+])
 
-    "Decision Tree": Pipeline([
-        ("scaler", StandardScaler()),
-        ("model", DecisionTreeClassifier(
-            random_state=42,
-            max_depth=5
-        ))
-    ]),
 
-    "Random Forest": Pipeline([
-        ("scaler", StandardScaler()),
-        ("model", RandomForestClassifier(
-            n_estimators=200,
-            random_state=42,
-            max_depth=8
-        ))
-    ]),
+# =========================================================
+# 6. HYPERPARAMETER TUNING
+# =========================================================
 
-    "KNN": Pipeline([
-        ("scaler", StandardScaler()),
-        ("model", KNeighborsClassifier(n_neighbors=7))
-    ]),
+param_grid = {
 
-    "SVM": Pipeline([
-        ("scaler", StandardScaler()),
-        ("model", SVC(kernel="rbf"))
-    ])
+    "model__C": [
+        0.01,
+        0.1,
+        1,
+        10
+    ],
+
+    "model__solver": [
+        "liblinear",
+        "lbfgs"
+    ]
 }
 
 
-# =========================================================
-# 6. TRAIN AND EVALUATE MODELS
-# =========================================================
-
-results = []
-
-best_model = None
-best_model_name = None
-best_f1 = 0
+cv = StratifiedKFold(
+    n_splits=5,
+    shuffle=True,
+    random_state=42
+)
 
 
-for name, model in models.items():
-
-    print("\n" + "-" * 60)
-    print(f"Training: {name}")
-    print("-" * 60)
-
-    # Train
-    model.fit(X_train, y_train)
-
-    # Predict
-    y_pred = model.predict(X_test)
-
-    # Metrics
-    accuracy = accuracy_score(y_test, y_pred)
-    precision = precision_score(y_test, y_pred)
-    recall = recall_score(y_test, y_pred)
-    f1 = f1_score(y_test, y_pred)
-
-    # Store results
-    results.append({
-        "Model": name,
-        "Accuracy": accuracy,
-        "Precision": precision,
-        "Recall": recall,
-        "F1_Score": f1
-    })
-
-    # Display results
-    print(f"Accuracy  : {accuracy:.4f}")
-    print(f"Precision : {precision:.4f}")
-    print(f"Recall    : {recall:.4f}")
-    print(f"F1 Score  : {f1:.4f}")
-
-    # Select best model using F1 score
-    if f1 > best_f1:
-        best_f1 = f1
-        best_model = model
-        best_model_name = name
+grid_search = GridSearchCV(
+    estimator=pipeline,
+    param_grid=param_grid,
+    scoring="f1",
+    cv=cv,
+    n_jobs=-1
+)
 
 
-# =========================================================
-# 7. MODEL COMPARISON
-# =========================================================
+print("\n" + "-" * 65)
+print("HYPERPARAMETER TUNING")
+print("-" * 65)
 
-results_df = pd.DataFrame(results)
 
-print("\n")
-print("=" * 60)
-print("MODEL COMPARISON")
-print("=" * 60)
+grid_search.fit(
+    X_train,
+    y_train
+)
+
+
+best_model = grid_search.best_estimator_
+
+
+print("\nBest Parameters:")
+print(grid_search.best_params_)
 
 print(
-    results_df.sort_values(
-        by="F1_Score",
-        ascending=False
-    ).to_string(index=False)
+    f"\nBest Cross-Validation F1: "
+    f"{grid_search.best_score_:.4f}"
 )
 
 
 # =========================================================
-# 8. BEST MODEL
+# 7. TEST SET EVALUATION
 # =========================================================
 
-print("\n")
-print("=" * 60)
-print("BEST MODEL")
-print("=" * 60)
+y_pred = best_model.predict(X_test)
 
-print("Model:", best_model_name)
-print(f"F1 Score: {best_f1:.4f}")
+
+accuracy = accuracy_score(
+    y_test,
+    y_pred
+)
+
+precision = precision_score(
+    y_test,
+    y_pred
+)
+
+recall = recall_score(
+    y_test,
+    y_pred
+)
+
+f1 = f1_score(
+    y_test,
+    y_pred
+)
+
+
+print("\n" + "=" * 65)
+print("FINAL TEST PERFORMANCE")
+print("=" * 65)
+
+print(f"Accuracy  : {accuracy:.4f}")
+print(f"Precision : {precision:.4f}")
+print(f"Recall    : {recall:.4f}")
+print(f"F1 Score  : {f1:.4f}")
 
 
 # =========================================================
-# 9. DETAILED EVALUATION OF BEST MODEL
+# 8. CLASSIFICATION REPORT
 # =========================================================
-
-best_predictions = best_model.predict(X_test)
 
 print("\nClassification Report:")
+
 print(
     classification_report(
         y_test,
-        best_predictions,
-        target_names=["Rejected", "Approved"]
+        y_pred,
+        target_names=[
+            "Rejected",
+            "Approved"
+        ]
     )
 )
 
-print("Confusion Matrix:")
-print(confusion_matrix(y_test, best_predictions))
+
+# =========================================================
+# 9. CONFUSION MATRIX
+# =========================================================
+
+print("\nConfusion Matrix:")
+
+print(
+    confusion_matrix(
+        y_test,
+        y_pred
+    )
+)
 
 
 # =========================================================
-# 10. SAVE BEST MODEL
+# 10. SAVE MODEL
 # =========================================================
 
-joblib.dump(best_model, "model.pkl")
+joblib.dump(
+    best_model,
+    "model.pkl"
+)
 
-print("\nBest model saved successfully as:")
-print("model.pkl")
+
+print("\n" + "=" * 65)
+print("MODEL SAVED")
+print("=" * 65)
+
+print("File: model.pkl")
+print("Model: Logistic Regression Pipeline")
+print("Scaling: StandardScaler")
+print("Cross-validation: 5-fold")
+print("Class balancing: Enabled")

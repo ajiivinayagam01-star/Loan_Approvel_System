@@ -552,70 +552,43 @@ async def predict_loan_approval(
         }
 
 
-        # =================================================
+        # =========================================================
         # FINAL DECISION
-        # =================================================
-        #
-        # IMPORTANT:
-        #
-        # The ML model can predict APPROVED.
-        # However, if affordability is HIGH RISK,
-        # the final system decision becomes MANUAL REVIEW.
-        #
-        # SHAP and LIME continue to explain the ML model.
-        #
-        # =================================================
+        # =========================================================
 
         if affordability_status == "HIGH RISK":
-
-            approval_status = "MANUAL REVIEW"
+            approval_status = "REJECTED"
 
         elif prediction == 1:
-
             approval_status = "APPROVED"
 
         else:
-
             approval_status = "REJECTED"
-
-
-        # =================================================
+        # =========================================================
         # RECOMMENDATION
-        # =================================================
+        # =========================================================
 
         if affordability_status == "HIGH RISK":
 
             recommendation = (
-                "High affordability risk - "
-                "manual review required"
+                "High affordability risk - loan rejected"
             )
 
         elif prediction == 1 and approval_probability >= 0.80:
 
-            recommendation = (
-                "Strong approval candidate"
-            )
+            recommendation = "Strong approval candidate"
 
         elif prediction == 1 and approval_probability >= 0.60:
 
-            recommendation = (
-                "Likely to be approved"
-            )
+            recommendation = "Likely to be approved"
 
         elif prediction == 1:
 
-            recommendation = (
-                "Borderline approval - "
-                "manual review recommended"
-            )
+            recommendation = "Borderline approval"
 
         else:
 
-            recommendation = (
-                "High rejection risk"
-            )
-
-
+            recommendation = "High rejection risk"
         # =================================================
         # LOG FINAL RESULT
         # =================================================
